@@ -14,11 +14,18 @@ export interface VenueCandidate {
 }
 
 // ponytail: stub until P4-2/P4-3 Merge tools replace this with real retrieval.
+// Kept larger than 3 entries so a demo with a couple of rejection rounds
+// (§11) doesn't run out of genuinely different options to offer next.
 export async function retrieveCandidates(_activity: string): Promise<VenueCandidate[]> {
   return [
     { name: 'The Bouldering Project', source_tool: 'stub', ref_id: 'stub-001' },
     { name: 'Topgolf', source_tool: 'stub', ref_id: 'stub-002' },
     { name: 'City Escape Rooms', source_tool: 'stub', ref_id: 'stub-003' },
+    { name: 'Pinstripes Bowling & Bocce', source_tool: 'stub', ref_id: 'stub-004' },
+    { name: 'Museum of Ice Cream', source_tool: 'stub', ref_id: 'stub-005' },
+    { name: 'Local trailhead + picnic', source_tool: 'stub', ref_id: 'stub-006' },
+    { name: 'Board game cafe', source_tool: 'stub', ref_id: 'stub-007' },
+    { name: 'Karaoke lounge', source_tool: 'stub', ref_id: 'stub-008' },
   ]
 }
 
@@ -40,10 +47,19 @@ export interface SynthesisInput {
   currentPlan: Plan | null
   groupId: string
   client?: ClaudeClient
+  // Concrete rejection reason from plan-feedback.ts's classifyPlanFeedback,
+  // when this call is revising in response to pushback rather than a fresh
+  // proposal. Folded into the revision prompt so "too expensive" actually
+  // changes the outcome, not just the version number.
+  feedback?: string
+  // ref_ids of venues already rejected earlier in this plan's revision
+  // history — excluded from candidates so a revision can't re-suggest the
+  // exact place that was just turned down.
+  excludeVenueRefIds?: string[]
 }
 
 function buildSynthesisPrompt(input: SynthesisInput, candidates: VenueCandidate[]): string {
-  const { groupProfile, personProfiles, currentPlan } = input
+  const { groupProfile, personProfiles, currentPlan, feedback } = input
 
   const profileLines = personProfiles
     .map(
@@ -56,6 +72,11 @@ function buildSynthesisPrompt(input: SynthesisInput, candidates: VenueCandidate[
     .map((c) => `- ${c.name} (tool=${c.source_tool}, ref=${c.ref_id})`)
     .join('\n')
 
+  const feedbackLine =
+    feedback !== undefined
+      ? `\n\nThe group's specific feedback on the previous version: "${feedback}" — the new pick must genuinely address this, not just change cosmetically.`
+      : ''
+
   const revisionBlock = currentPlan
     ? `\n<current_plan>
 Activity: ${currentPlan.activity}
@@ -64,7 +85,7 @@ Datetime: ${currentPlan.datetime}
 Rationale: ${currentPlan.rationale}
 </current_plan>
 
-You are revising the plan above based on new information or feedback. Improve it.`
+You are revising the plan above based on new information or feedback. Improve it.${feedbackLine}`
     : 'This is the first proposal for this group.'
 
   return `You are planning a hangout for a group of friends. Your job is to suggest something genuinely exciting and specific — not a generic logistics dump, but a warm, thoughtful proposal from a friend who knows what everyone actually likes.
@@ -93,10 +114,17 @@ Attendee person_ids to include: ${personProfiles.map((p) => p.person_id).join(',
 export async function synthesizePlan(
   input: SynthesisInput,
 ): Promise<{ plan: Plan; message: string }> {
-  const { currentPlan, groupId, client, groupProfile } = input
+  const { currentPlan, groupId, client, groupProfile, excludeVenueRefIds } = input
 
   const activityHint = currentPlan?.activity ?? groupProfile.shared_interests[0] ?? 'hangout'
-  const candidates = await retrieveCandidates(activityHint)
+  const allCandidates = await retrieveCandidates(activityHint)
+  const excluded = new Set(excludeVenueRefIds ?? [])
+  const candidates =
+    excluded.size === 0 ? allCandidates : allCandidates.filter((c) => !excluded.has(c.ref_id))
+
+  if (candidates.length === 0) {
+    throw new Error('synthesizePlan: no venue candidates remain after excluding rejected venues')
+  }
 
   const output = await callStructured({
     schema: SynthesisContentSchema,

@@ -63,3 +63,16 @@ export async function getAllPlanVersions(groupId: string, planId: string): Promi
   })
   return rows.map(rowToPlan)
 }
+
+// Returns the single most recently created plan (any plan_id) for a group,
+// or null if none exists yet. Lets the orchestrator recover "what's the
+// active plan" from the database on restart rather than only from
+// in-memory state.
+export async function getLatestPlanForGroup(groupId: string): Promise<Plan | null> {
+  const row = await prisma.planObject.findFirst({
+    where: { groupId },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!row) return null
+  return rowToPlan(row)
+}
