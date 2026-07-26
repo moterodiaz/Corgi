@@ -17,5 +17,7 @@ describe('should-I-speak classifier', () => {
     expect(prompt).toContain('lull');
     expect(prompt).toContain('unresolved disagreement');
     expect(prompt).toContain('insufficient');
+    expect(prompt).toContain('<untrusted_transcript>');
+    expect(client.requests[0]?.user).toContain('<trusted_profiles>');
   });
 });

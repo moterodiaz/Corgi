@@ -10,6 +10,7 @@ describe('feedback diff layer', () => {
     const client = new QueueClaudeClient([{ kind: 'hard_constraint_change', patch: { datetime: '2026-08-03T14:00:00-07:00' }, requiresCandidateRefresh: true }]);
     const result = await applyFeedbackDiff(client, repo, { groupId: 'g1', feedback: 'Sam cannot do Saturday.' });
     expect(result).toMatchObject({ kind: 'hard_constraint_change', requiresSynthesis: false, requiresCandidateRefresh: true, plan: { version: 2, datetime: '2026-08-03T14:00:00-07:00', activity: 'climbing gym session' } });
+    expect(client.requests[0]?.user).toContain('<untrusted_feedback>');
   });
   it('supports non-time hard constraints and preserves RSVPs absent from a partial update', async () => {
     const repo = await withCurrentPlan();
@@ -34,5 +35,11 @@ describe('feedback diff layer', () => {
     const repo = await withCurrentPlan();
     const client = new QueueClaudeClient([{ kind: 'hard_constraint_change', patch: {}, requiresCandidateRefresh: true }]);
     await expect(applyFeedbackDiff(client, repo, { groupId: 'g1', feedback: 'Sam cannot go.' })).rejects.toThrow();
+  });
+  it('rejects an invented patch field instead of mutating the plan', async () => {
+    const repo = await withCurrentPlan();
+    const client = new QueueClaudeClient([{ kind: 'preference_nudge', patch: { cost_level: 'very_low' }, requiresCandidateRefresh: true }]);
+    await expect(applyFeedbackDiff(client, repo, { groupId: 'g1', feedback: 'Can we do something cheaper?' })).rejects.toThrow();
+    expect((await repo.getCurrentPlan('g1'))?.version).toBe(1);
   });
 });

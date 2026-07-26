@@ -9,6 +9,7 @@
 - P3-5: minimal feedback patching with separate hard-constraint, preference, and full-reject paths; a full rejection leaves plan and profiles untouched and returns a request for new synthesis.
 - Follow-up correctness review: partial RSVP patches preserve every uninvolved attendee; hard constraints may change any affected plan field (not only time); synthesis rejects cross-group profile input; and plan revisions cannot replace a plan ID.
 - A hard constraint or preference nudge now tells the orchestrator whether it must refresh venue/time candidates. When no precise alternative is available, the model must mark the affected attendee pending rather than emit an invalid empty patch.
+- Prompt-validation follow-up: the structured-output client, Zod schemas, and explicit trusted/untrusted prompt delimiters are intentional defenses against semantically invalid model output and prompt injection. The test suite rejects unknown patch fields and cross-group state; temporary live-model probes were not added to product code or fixtures.
 
 ## Foundation exception
 

@@ -22,6 +22,7 @@ describe('context extraction', () => {
     const sam = (await repo.getPersonProfiles('g1'))[0];
     expect(sam?.interests[0]).toMatchObject({ mentions: 3 });
     expect(sam?.interests[0]?.confidence).toBeGreaterThan(0.25);
+    expect(client.requests[0]?.user).toContain('<untrusted_transcript>');
   });
   it('rejects a Claude delta that attempts to write another group', async () => {
     const repo = new InMemoryReasoningRepository();
