@@ -146,6 +146,19 @@ async function main(): Promise<void> {
 
     if (chatGuid !== groupChatGuid) return
     index += 1
+
+    if (index >= LINES.length) {
+      // Run finished — reset so this same long-running process can handle a
+      // brand new "friend group" trigger later instead of silently ignoring
+      // it (which is exactly what made this look broken before: an already-
+      // finished run doesn't react to anything, with zero visible error).
+      console.log('[demo-scripted] run complete — resetting, ready for a new trigger.')
+      groupChatGuid = undefined
+      amITriggerSender = undefined
+      index = 0
+      return
+    }
+
     void maybeSendTurn()
   })
 
