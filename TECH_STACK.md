@@ -10,7 +10,7 @@ Every agent (human or AI) working in this repo must read this file before writin
 
 `design-doc.md` §10 suggests a Python backend (Flask/FastAPI). But the Photon/Spectrum SDK (`spectrum-ts`) is **TypeScript/Node-only** — there is no first-party Python SDK. Splitting the system into a Node transport sidecar + a Python reasoning backend adds a cross-process boundary, a second dependency graph, and a second test/lint/CI setup, for no real benefit in a hackathon-scoped, multi-agent codebase.
 
-**Decision: the entire backend is TypeScript on Node.js.** Anthropic and Merge both have first-class HTTP APIs (and Merge/Anthropic TS clients), so nothing is lost by dropping Python. If someone already has a working Python service before reading this, flag it in a PR — don't just merge a second stack in quietly.
+**Decision: the entire backend is TypeScript on Node.js.** Anthropic has a first-party TypeScript client. Merge Agent Handler's management SDKs are still in development, but its management REST API works with any TypeScript HTTP client and its tool runtime is MCP. Nothing is lost by dropping Python. If someone already has a working Python service before reading this, flag it in a PR — don't just merge a second stack in quietly.
 
 ---
 
@@ -42,14 +42,21 @@ Every agent (human or AI) working in this repo must read this file before writin
 
 ## Tool / Data Layer — Merge Agent Handler
 
-- Use Merge's Agent Handler to register `search_venues`, `search_events`, and (if wired up) calendar-availability as agent tools, per `design-doc.md` §5.
-- Consult `docs.merge.dev/merge-agent-handler` directly for the current tool-registration API rather than assuming a shape — same rule as Spectrum above.
-- Wrap every Merge tool call in the same pattern as Claude calls: typed request, Zod-validated response, explicit timeout, explicit fallback (chat-text inference for availability, per §5, is the documented fallback — implement it as a real code path, not a TODO).
+**P4-1 result (verified 2026-07-25 against live official docs):**
+
+- Agent Handler has two separate surfaces. Its [REST API](https://docs.merge.dev/merge-agent-handler/agent-handler) is the management plane for Registered Users, Tool Packs, Link tokens, and account configuration; official management SDKs are still in development, so call REST with a normal TypeScript HTTP client. Corgi's runtime discovers and calls tools through Merge's [MCP integration](https://docs.merge.dev/merge-agent-handler/build/connecting-agents/mcp-integration). Do not invent a direct tool-registration API.
+- For built-in Connectors, create a Tool Pack with [`POST /api/v1/tool-packs/`](https://docs.merge.dev/merge-agent-handler/agent-handler/tool-packs/tool-packs-create) and `{ name, description, connectors: [{ slug, auth_scope, tool_names }] }`, selecting only the tools Corgi needs. Corgi must use `auth_scope: "INDIVIDUAL"` for personal Google/Outlook calendars.
+- If P0-1 chooses Corgi-owned curated venue/event data, Corgi must operate a [custom MCP Connector](https://docs.merge.dev/merge-agent-handler/build/connecting-agents/custom-mcp-servers). The documented registration flow is dashboard **Connectors → Add new** with a unique name, remote publicly reachable HTTPS MCP endpoint, and static bearer token/API key; Merge then runs `tools/list`. Add the discovered Connector to Corgi's Tool Pack and select `search_venues` and `search_events`, or the runtime MCP endpoint will not expose them. There is no documented custom-Connector create endpoint to implement, and local/stdio servers are unsupported.
+- A [Registered User](https://docs.merge.dev/merge-agent-handler/build/users/registered-users) is the per-end-user isolation boundary for credentials and tool calls. Create one idempotently from a stable, opaque, group-scoped `origin_user_id`; Zod-validate the live P0-2 sandbox response because Merge's prose guide and endpoint reference currently disagree on the identifier field name. Before the Phase 1 contract freezes, persist the validated Agent Handler Registered User identifier on that `GroupMember`. Resolve the correct person's ID for every production/calendar call. A configured test ID is only for sandbox smoke tests.
+- Use the official [`@modelcontextprotocol/sdk` TypeScript client](https://ts.sdk.modelcontextprotocol.io/client.html): `Client` with `StreamableHTTPClientTransport`, not `StdioClientTransport`. Connect to `https://ah-api.merge.dev/api/v1/tool-packs/<TOOL_PACK_ID>/registered-users/<REGISTERED_USER_ID>/mcp` with `Authorization: Bearer <ACCESS_KEY>`.
+- Call the per-person [`tools/list` endpoint](https://docs.merge.dev/merge-agent-handler/agent-handler/mcp/endpoint-post) with `authenticated_only=true`, then use each live result's exact `name` and `inputSchema`; never construct or guess Merge runtime names or arguments. Keep Corgi's normalized wrappers stable as `search_venues`, `search_events`, and `calendar_availability`, mapping them to discovered tools internally.
+- Calendar adapters are Connector-specific: Google Calendar exposes [`query_freebusy`](https://docs.merge.dev/merge-agent-handler/connectors/google-calendar); Outlook exposes [`get_user_schedule` and `find_meeting_times`](https://docs.merge.dev/merge-agent-handler/connectors/outlook). Normalize their different schemas. If no authenticated calendar tool is discovered, explicitly use chat-text availability inference. If a call returns [`reauth_required`](https://docs.merge.dev/merge-agent-handler/resources/troubleshooting), surface an explicit reconnect-required signal and continue planning with chat-text inference rather than failing or silently treating the credential as absent.
+- Every wrapper still requires a typed request/response, Zod validation, an explicit timeout, and explicit error/fallback behavior.
 
 ## Storage
 
 - **Prisma** as the ORM, backed by **SQLite** for local dev and the hackathon demo, with a schema written so a swap to **Postgres** (per `design-doc.md` §10, "if there's time") is a `DATABASE_URL` + `datasource` change, not a rewrite.
-- Models: `GroupProfile`, `PersonProfile`, `PlanObject` (versioned — see §8 of the design doc, keep a `version` column and never mutate a prior version in place), `TranscriptBuffer`.
+- Models: `GroupProfile`, `PersonProfile`, `PlanObject` (versioned — see §8 of the design doc, keep a `version` column and never mutate a prior version in place), `TranscriptBuffer`, and `GroupMember`. `GroupMember` owns the nullable `mergeRegisteredUserId` mapping required by P4-4; this is group-scoped so tool credentials cannot leak across group boundaries.
 - All schema changes go through Prisma Migrate (`prisma migrate dev`), committed migration files — never hand-edit the SQLite file or ship a schema change without a migration.
 
 ## Validation
@@ -76,7 +83,7 @@ Every agent (human or AI) working in this repo must read this file before writin
 ## Environment & Secrets
 
 - `dotenv` for local env loading. `.env` is git-ignored; `.env.example` is committed and kept up to date with every env var the app reads (placeholder values only).
-- Secrets needed: `ANTHROPIC_API_KEY`, `MERGE_API_KEY` (+ any account token), `PHOTON_API_KEY` / Spectrum credentials. Never commit real values, never log secret values, never put them in error messages.
+- Secrets/config needed: `ANTHROPIC_API_KEY`, `MERGE_ACCESS_KEY`, `MERGE_TOOL_PACK_ID`, `MERGE_TEST_REGISTERED_USER_ID` (sandbox smoke tests only), and `PHOTON_API_KEY` / Spectrum credentials. If P0-1 selects curated data, also provision `CORGI_MCP_CONNECTOR_TOKEN`, shared by Merge's custom Connector and Corgi's remote MCP server. Production Registered User IDs come from the persisted per-person mapping, never global config. Never commit real values, never log secret values, never put them in error messages.
 - A secret-scanning pre-commit/CI check (e.g. `gitleaks`) is required — this is cheap insurance against the most embarrassing possible mistake.
 
 ## Repository Layout
