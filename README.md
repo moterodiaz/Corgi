@@ -60,16 +60,17 @@ that part.
 
 ## Other scripts
 
-| Script                     | What it does                                                             |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `pnpm lint`                | ESLint only                                                              |
-| `pnpm format`              | Prettier write                                                           |
-| `pnpm build`               | Compile `src/` → `dist/`                                                 |
-| `pnpm db:migrate`          | Run Prisma migrations (run once after install, and after schema changes) |
-| `pnpm db:generate`         | Regenerate Prisma client without migrating                               |
-| `pnpm bluebubbles:install` | One-time BlueBubbles Server download/install/configure                   |
-| `pnpm bluebubbles:start`   | Ensure BlueBubbles is running, then start Corgi's dev server             |
-| `pnpm bluebubbles:listen`  | Standalone smoke test — logs every real inbound message/reaction live    |
+| Script                          | What it does                                                                                                                                                                            |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`                     | ESLint only                                                                                                                                                                             |
+| `pnpm format`                   | Prettier write                                                                                                                                                                          |
+| `pnpm build`                    | Compile `src/` → `dist/`                                                                                                                                                                |
+| `pnpm db:migrate`               | Run Prisma migrations (run once after install, and after schema changes)                                                                                                                |
+| `pnpm db:generate`              | Regenerate Prisma client without migrating                                                                                                                                              |
+| `pnpm bluebubbles:install`      | One-time BlueBubbles Server download/install/configure                                                                                                                                  |
+| `pnpm bluebubbles:start`        | Ensure BlueBubbles is running, then start Corgi's dev server                                                                                                                            |
+| `pnpm bluebubbles:listen`       | Standalone smoke test — logs every real inbound message/reaction live                                                                                                                   |
+| `pnpm bluebubbles:trigger-test` | One-shot round-trip test — waits for a message starting with "friend group" (from anyone, including the operator's own devices) in any chat, then replies into that same chat and exits |
 
 ## Node version
 
