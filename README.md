@@ -2,7 +2,7 @@
 
 An ambient AI agent that lives in an iMessage group chat, quietly learns what the group wants, and proposes a real plan. See [design-doc.md](./design-doc.md) for product intent and [TECH_STACK.md](./TECH_STACK.md) for stack decisions.
 
-**Setting this up as an AI agent for a live demo?** Read and follow [RUNME.md](./RUNME.md) exactly — it's a self-contained, step-by-step run-book meant to be executed directly.
+**Setting this up for the live demo?** Just run `./setup.sh` — it installs everything, starts BlueBubbles, and starts the demo listener.
 
 ## Quick start
 

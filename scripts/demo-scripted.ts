@@ -4,34 +4,30 @@ import { createBlueBubblesClient } from '../src/transport/BlueBubblesClient.js'
 import { BlueBubblesOutboundAdapter } from '../src/transport/BlueBubblesOutboundAdapter.js'
 import { NEW_MESSAGE_EVENT } from '../src/transport/BlueBubblesInboundAdapter.js'
 
-// Fully hardcoded, no-Claude, no-API-key-needed demo. Run the exact same
-// command on all 3 machines — NO manual role/number config needed:
+// Fully hardcoded, no-Claude, no-API-key-needed 2-person demo. Run the exact
+// same command on both machines — no manual config needed:
 //
-// - Whoever's device actually sends the "friend group" trigger message
-//   (from anyone, any chat this Mac's iMessage can see — bypassing isFromMe
-//   for trigger detection just like bluebubbles-trigger-test.ts, since the
-//   trigger-sender's own device sees isFromMe:true for it) is auto-detected
-//   as the "starter" and owns the role-0 lines (kickoff/proposal/confirm).
-// - The other two machines don't know or need distinct identities: for
-//   every "someone else" line, both race it with a randomized delay and
-//   whichever actually observes it's still their turn (via the shared
-//   chat's real message count — not each machine's own clock) sends it;
-//   the other sees the turn already advanced and moves on. A machine that
-//   just won backs off extra hard on the next "someone else" turn so the
-//   same device doesn't dominate every line.
+// - Whichever device actually sends the "friend group" trigger message
+//   (isFromMe:true on ITS OWN BlueBubbles connection only — that's how it
+//   tells itself apart from the other machine) owns the role-0 lines
+//   (kickoff/proposal/confirm).
+// - The other machine owns every role-1 line.
+// - If the other machine somehow isn't running, this machine falls back to
+//   sending role-1 lines itself after a long delay, so the demo still
+//   finishes solo instead of hanging forever.
 //
-// This is deliberately eventually-consistent, not perfectly race-free —
-// acceptable for a live demo, not something to build production infra on.
+// IMPORTANT: this process only reacts to trigger messages it sees AFTER it
+// starts — it has no memory of anything sent before it started, and once it
+// has seen one trigger it will not react to a second one in the same run.
+// Always start this fresh, right before you're about to actually send
+// "friend group" for real — don't leave an old run sitting around from
+// testing and then expect a later real trigger to "start over" in it.
 //
 // Run: pnpm demo:scripted
 
 const TRIGGER = 'friend group'
-const OTHER_ROLE_HANDICAP_MS = 6_000
-// If no other machine claims an "other participant" line within this long,
-// the starter's own machine sends it instead — so the demo still completes
-// solo (e.g. while testing, or if a friend's machine never came online)
-// instead of stalling forever waiting for a participant that isn't there.
-// Real other machines finish their normal jitter well before this elapses.
+// If the other machine hasn't claimed a role-1 line within this long, this
+// machine sends it instead — a safety net, not the expected path.
 const SOLO_FALLBACK_DELAY_MS = 20_000
 
 function requireEnv(name: string, hint: string): string {
@@ -66,9 +62,8 @@ function jitter(baseMs: number, spreadMs: number): number {
   return baseMs + Math.random() * spreadMs
 }
 
-// [role (0 = the trigger-sender's device only; 1 = raced by every other
-// device), gap-before-base-ms, gap-before-spread-ms, text]. Gaps vary every
-// run, never a fixed interval.
+// [role (0 = trigger sender only; 1 = the other person), gap-before-base-ms,
+// gap-before-spread-ms, text]. Gaps vary every run, never a fixed interval.
 const LINES: Array<[number, number, number, string]> = [
   [0, 0, 0, "ok we should actually do something this weekend, who's free"],
   [1, 3_000, 6_000, 'yeah im down, just not too expensive lol'],
@@ -78,19 +73,18 @@ const LINES: Array<[number, number, number, string]> = [
     0,
     15_000,
     10_000,
-    "ooh ok what about The Bouldering Project sat around 3pm? a couple of you mentioned wanting to get back into climbing and it's pretty low-key on cost",
+    "ooh ok what about The Bouldering Project sat around 3pm? you mentioned wanting to get back into climbing and it's pretty low-key on cost",
   ],
   [1, 5_000, 8_000, 'hard pass that place is kinda pricey ngl'],
-  [1, 4_000, 6_000, 'yeah fr, need something cheaper'],
+  [1, 4_000, 6_000, 'yeah need something cheaper'],
   [
     0,
     10_000,
     8_000,
-    'how about a board game cafe instead, sat at 4? way easier on the wallet and still a fun group hang',
+    'how about a board game cafe instead, sat at 4? way easier on the wallet and still a fun hang',
   ],
   [1, 3_000, 5_000, 'omg yes that works'],
-  [1, 2_000, 4_000, 'yeah im down!!'],
-  [0, 6_000, 6_000, '🎉 locked in! board game cafe sat at 4. see you all there'],
+  [0, 6_000, 6_000, '🎉 locked in! board game cafe sat at 4. see you there'],
 ]
 
 async function main(): Promise<void> {
@@ -103,7 +97,6 @@ async function main(): Promise<void> {
   let amITriggerSender: boolean | undefined
   let index = 0
   let sending = false
-  let lastTurnWonByMe = false
 
   async function maybeSendTurn(): Promise<void> {
     if (sending || groupChatGuid === undefined || amITriggerSender === undefined) return
@@ -111,26 +104,25 @@ async function main(): Promise<void> {
     const line = LINES[index]
     if (line === undefined) return
     const [lineRole, gapBase, gapSpread, text] = line
+
     if (lineRole === 0 && !amITriggerSender) return // role-0 lines are exclusive to the trigger sender
+
+    const isMyLineNormally = lineRole === 0 ? amITriggerSender : !amITriggerSender
+    if (!isMyLineNormally && !amITriggerSender) return // a role-1 line, and I'm not the trigger sender — not mine
 
     sending = true
     const startIndex = index
-    let handicap = 0
-    if (lineRole !== 0) {
-      if (lastTurnWonByMe) handicap += OTHER_ROLE_HANDICAP_MS + Math.random() * 8_000
-      // The starter defers to real "other" participants if any exist, but
-      // will pick up the line itself if nobody else claims it in time.
-      if (amITriggerSender) handicap += SOLO_FALLBACK_DELAY_MS
-    }
+    // Only the trigger sender ever falls back onto the other person's line,
+    // and only after a long wait to give the real owner every chance first.
+    const handicap = isMyLineNormally ? 0 : SOLO_FALLBACK_DELAY_MS
     await sleep(jitter(gapBase, gapSpread) + handicap)
 
-    // Someone else may already have sent this turn while we waited.
+    // The real owner may have already sent this turn while we waited.
     if (index !== startIndex) {
       sending = false
       return
     }
     await outbound.sendMessage({ groupId: groupChatGuid, text })
-    lastTurnWonByMe = lineRole !== 0
     console.log(`[demo-scripted] sent: ${text}`)
     sending = false
   }
@@ -146,7 +138,7 @@ async function main(): Promise<void> {
       groupChatGuid = chatGuid
       amITriggerSender = payload.isFromMe === true
       console.log(
-        `[demo-scripted] triggered in chat ${groupChatGuid} — I am ${amITriggerSender ? 'the starter (role 0)' : 'another participant'}`,
+        `[demo-scripted] triggered in chat ${groupChatGuid} — I am ${amITriggerSender ? 'the starter (role 0)' : 'the other person (role 1)'}`,
       )
       void maybeSendTurn()
       return
