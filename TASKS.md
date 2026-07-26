@@ -38,12 +38,12 @@ Every bullet below is one unit of work for one person (or one agent): one branch
 
 *Depends on Phase 0. P2-1 and P2-2 block later items in this phase and in Phase 6 — do them first.*
 
-- [ ] **P2-1. Spike: confirm the current Spectrum integration mode** (webhook vs. gRPC/Node-sidecar) against the live Photon docs, not against what `design-doc.md` §4 assumed. Update `TECH_STACK.md`'s note on this once confirmed.
-- [ ] **P2-2. Spike: verify mini-app card in-place update semantics** against a real sandbox/test account with a minimal throwaway script, per the `design-doc.md` §12 risk ("confirm before building the revision UX around it"). Don't let Phase 6 assume this works.
-- [ ] **P2-3. Define `TransportPort`** (`onMessage`, `onCardInteraction`, `sendMessage`, `updateCard`) plus an in-memory mock implementation, with tests. Nothing outside this file should import `spectrum-ts` directly.
-- [ ] **P2-4. Inbound adapter:** real `spectrum-ts` wiring for messages and card-interaction events, including verifying the event's signature/authenticity before processing it, and basic rate-limiting on the public endpoint. Tests against recorded/mocked payloads.
-- [ ] **P2-5. Outbound adapter:** `sendMessage`, create/update mini-app card, and the poll-style component, via `spectrum-ts`. Tests.
-- [ ] **P2-6. Rolling transcript buffer wiring:** every inbound message appended per-group via the P1-3 repository, tagged with sender — built with no assumption of backfilled history, per the §4 design note. Tests.
+- [x] **P2-1. Spike: confirm the current Spectrum integration mode** (webhook vs. gRPC/Node-sidecar) against the live Photon docs, not against what `design-doc.md` §4 assumed. Update `TECH_STACK.md`'s note on this once confirmed.
+- [x] **P2-2. Spike: verify mini-app card in-place update semantics** against a real sandbox/test account with a minimal throwaway script, per the `design-doc.md` §12 risk ("confirm before building the revision UX around it"). Don't let Phase 6 assume this works.
+- [x] **P2-3. Define `TransportPort`** (`onMessage`, `onCardInteraction`, `sendMessage`, `updateCard`) plus an in-memory mock implementation, with tests. Nothing outside this file should import `spectrum-ts` directly.
+- [x] **P2-4. Inbound adapter:** real `spectrum-ts` wiring for messages and card-interaction events, including verifying the event's signature/authenticity before processing it, and basic rate-limiting on the public endpoint. Tests against recorded/mocked payloads.
+- [x] **P2-5. Outbound adapter:** `sendMessage`, create/update mini-app card, and the poll-style component, via `spectrum-ts`. Tests.
+- [x] **P2-6. Rolling transcript buffer wiring:** every inbound message appended per-group via the P1-3 repository, tagged with sender — built with no assumption of backfilled history, per the §4 design note. Tests.
 
 ## Phase 3 — Claude Reasoning Layer
 
@@ -78,9 +78,9 @@ Every bullet below is one unit of work for one person (or one agent): one branch
 
 *Depends on P2-2 (in-place update spike) and P1-1 (Plan Object shape).*
 
-- [ ] **P6-1. Card template:** renders activity, venue, datetime, cost tier, rationale, and per-attendee RSVP state from the `PlanObject` shape. Rendering/snapshot tests.
-- [ ] **P6-2. In-place card update on revision** — same card edited, not a new message posted. Tests.
-- [ ] **P6-3. Poll-style component** for quick binary asks ("does Saturday work?"). Tests.
+- [x] **P6-1. Card template:** renders activity, venue, datetime, cost tier, rationale, and per-attendee RSVP state from the `PlanObject` shape. Rendering/snapshot tests.
+- [x] **P6-2. In-place card update on revision** — same card edited, not a new message posted. Tests.
+- [x] **P6-3. Poll-style component** for quick binary asks ("does Saturday work?"). Tests.
 
 ## Phase 7 — Integration, Security & Demo Readiness
 

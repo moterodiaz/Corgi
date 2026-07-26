@@ -28,7 +28,11 @@ Every agent (human or AI) working in this repo must read this file before writin
 ## Transport — Photon / Spectrum SDK
 
 - Library: `spectrum-ts` (Photon).
-- **Before building the ingestion layer, verify against the live Photon docs (photon.codes) whether webhook mode or the gRPC-stream/Node-sidecar mode is current and recommended.** Spectrum's integration pattern has changed rapidly; `design-doc.md` §4 assumes webhook delivery, but treat that as a hypothesis to confirm on day one, not a fact to build blindly on. This is exactly the kind of "hallucinated API shape" risk the [Agent Rules](./AGENTS.md) file warns about — don't let an agent invent Spectrum call signatures from training data. Read the actual current SDK types.
+- **P2-1 decision (confirmed from live docs + SDK README, 2026-07-25):** Spectrum supports two inbound patterns in Node/Bun:
+  - **Primary SDK model:** long-lived process consuming `app.messages` (AsyncIterable).
+  - **HTTP alternative:** webhook mode via `app.webhook()` (native Spectrum + Fusor formats), with HMAC verification via `webhookSecret`.
+  - **Not a required app-side mode choice:** there is no mandatory external gRPC sidecar you must run in your app for this project; gRPC transport details are internal to cloud provider/runtime plumbing.
+- **Project standard for Corgi:** use **webhook mode** via `app.webhook()` in Fastify for inbound transport, because the app already standardizes on an HTTP server and explicit request-boundary verification. Keep the handler behind `TransportPort` so the rest of the codebase stays transport-agnostic.
 - Whichever mode is current, isolate it behind a small internal interface (e.g. `TransportPort` with `onMessage`, `onCardInteraction`, `sendMessage`, `updateCard`) so the rest of the codebase never imports `spectrum-ts` directly. If Photon changes their API again mid-project, one file changes, not twenty.
 
 ## Reasoning — Claude
