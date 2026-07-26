@@ -13,6 +13,7 @@
     "bluebubbles:listen": "tsx scripts/bluebubbles-listen.ts",
     "bluebubbles:trigger-test": "tsx scripts/bluebubbles-trigger-test.ts",
     "demo:rehearsal": "tsx scripts/demo-rehearsal.ts",
+    "demo:persona-relay": "tsx scripts/persona-relay.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && eslint . && vitest run && tsc -p tsconfig.build.json",
