@@ -12,8 +12,9 @@ export default defineConfig({
     env: {
       ANTHROPIC_API_KEY: 'test-anthropic-key',
       MERGE_API_KEY: 'test-merge-key',
-      PHOTON_API_KEY: 'test-photon-key',
       DATABASE_URL: 'file:./test.db',
+      BLUEBUBBLES_SERVER_URL: 'http://127.0.0.1:1234',
+      BLUEBUBBLES_SERVER_PASSWORD: 'test-bluebubbles-password',
     },
   },
 })

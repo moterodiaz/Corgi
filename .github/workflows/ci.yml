@@ -37,5 +37,6 @@ jobs:
           # Real secrets are never committed — see .env.example.
           ANTHROPIC_API_KEY: ci-placeholder
           MERGE_API_KEY: ci-placeholder
-          PHOTON_API_KEY: ci-placeholder
           DATABASE_URL: file:./test.db
+          BLUEBUBBLES_SERVER_URL: http://127.0.0.1:1234
+          BLUEBUBBLES_SERVER_PASSWORD: ci-placeholder
