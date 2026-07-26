@@ -117,3 +117,9 @@ Everything above is the approved list. To add a new dependency:
 - `@anthropic-ai/sdk@0.115.0` — official Anthropic TypeScript SDK used by the Claude client wrapper.
 
 See [AGENTS.md](./AGENTS.md) for the full rule set this stack is designed to support.
+
+### E2 implementation dependencies
+
+- `@anthropic-ai/sdk` `0.115.0` — Claude Messages API with forced tool use.
+- `zod` `4.4.3` — validation of every structured Claude boundary and shared contracts.
+- `nock` `14.0.16` — HTTP-boundary Claude client tests.
