@@ -15,10 +15,10 @@ export async function buildServer() {
       redact: [
         'ANTHROPIC_API_KEY',
         'MERGE_API_KEY',
-        'PHOTON_API_KEY',
+        'BLUEBUBBLES_SERVER_PASSWORD',
         'config.ANTHROPIC_API_KEY',
         'config.MERGE_API_KEY',
-        'config.PHOTON_API_KEY',
+        'config.BLUEBUBBLES_SERVER_PASSWORD',
       ],
     },
   }).withTypeProvider<ZodTypeProvider>()
