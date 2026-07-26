@@ -748,6 +748,38 @@ describe('Tavily web search adapter', () => {
     })
   })
 
+  it('evicts the least-recently-inserted cache entry once max_entries is exceeded', async () => {
+    const fetchMock = createFetchMock()
+    fetchMock
+      .mockResolvedValueOnce(
+        tavilySuccess({ query: 'first query venues in Oakland', requestId: 'req_first' }),
+      )
+      .mockResolvedValueOnce(
+        tavilySuccess({ query: 'second query venues in Oakland', requestId: 'req_second' }),
+      )
+      .mockResolvedValueOnce(
+        tavilySuccess({ query: 'first query venues in Oakland', requestId: 'req_first_again' }),
+      )
+    const adapter = createTavilySearchAdapter({
+      api_key: API_KEY,
+      fetch: fetchMock,
+      now: () => NOW,
+      max_entries: 1,
+    })
+
+    await adapter.searchVenues({ query: 'first query', locality: 'Oakland' })
+    await adapter.searchVenues({ query: 'second query', locality: 'Oakland' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    const afterEviction = await adapter.searchVenues({ query: 'first query', locality: 'Oakland' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(afterEviction).toMatchObject({
+      provider_request_id: 'req_first_again',
+      cache_hit: false,
+    })
+  })
+
   it('deduplicates concurrent identical searches into one in-flight request', async () => {
     let resolveFetch: ((response: Response) => void) | undefined
     const fetchMock = vi.fn<typeof fetch>(

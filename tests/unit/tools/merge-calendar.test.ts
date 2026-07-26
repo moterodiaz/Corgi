@@ -398,9 +398,27 @@ describe('queryCalendarAvailabilityViaClient', () => {
 
     await queryCalendarAvailabilityViaClient(client, CANDIDATE_INTERVAL)
 
-    expect(callTool).toHaveBeenCalledWith({
-      name: 'query_freebusy',
-      arguments: { time_min: CANDIDATE_INTERVAL.start, time_max: CANDIDATE_INTERVAL.end },
+    expect(callTool).toHaveBeenCalledWith(
+      {
+        name: 'query_freebusy',
+        arguments: { time_min: CANDIDATE_INTERVAL.start, time_max: CANDIDATE_INTERVAL.end },
+      },
+      undefined,
+      { signal: undefined },
+    )
+  })
+
+  it('threads the caller-supplied signal into listTools and callTool', async () => {
+    const controller = new AbortController()
+    const listTools = vi.fn().mockResolvedValue({ tools: [tool('query_freebusy')] })
+    const callTool = vi.fn().mockResolvedValue({ structuredContent: { busy: [] }, content: [] })
+    const client = fakeClient({ listTools, callTool })
+
+    await queryCalendarAvailabilityViaClient(client, CANDIDATE_INTERVAL, controller.signal)
+
+    expect(listTools).toHaveBeenCalledWith(undefined, { signal: controller.signal })
+    expect(callTool).toHaveBeenCalledWith(expect.anything(), undefined, {
+      signal: controller.signal,
     })
   })
 
@@ -464,6 +482,22 @@ describe('queryCalendarAvailabilityViaClient', () => {
     const client = fakeClient({
       listTools: () => Promise.resolve({ tools: [tool('query_freebusy')] }),
       callTool: () => Promise.resolve({ structuredContent: { freeSlots: [] }, content: [] }),
+    })
+
+    await expect(queryCalendarAvailabilityViaClient(client, CANDIDATE_INTERVAL)).resolves.toEqual({
+      availability: 'pending',
+      pending_reason: 'upstream_error',
+    })
+  })
+
+  it('fails safe to upstream_error rather than silently free when a busy interval timestamp is unparseable', async () => {
+    const client = fakeClient({
+      listTools: () => Promise.resolve({ tools: [tool('query_freebusy')] }),
+      callTool: () =>
+        Promise.resolve({
+          structuredContent: { busy: [{ start: 'not-a-date', end: CANDIDATE_INTERVAL.end }] },
+          content: [],
+        }),
     })
 
     await expect(queryCalendarAvailabilityViaClient(client, CANDIDATE_INTERVAL)).resolves.toEqual({

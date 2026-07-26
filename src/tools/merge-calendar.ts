@@ -59,32 +59,48 @@ export class MergeCalendarError extends Error {
   }
 }
 
+// @modelcontextprotocol/sdk@1.29.0's StreamableHTTPClientTransport only
+// merges `requestInit` (including `redirect`) into the fetch calls its POST
+// path makes (send()); the standalone GET it issues to open its SSE stream
+// (_startOrAuthSse) calls the raw injected `fetch` option directly,
+// bypassing `requestInit` entirely — verified against
+// dist/esm/client/streamableHttp.js. That GET still carries the bearer
+// token (via _commonHeaders()), so without this wrapper a same-origin
+// redirect on that specific request would silently forward the credential
+// with `requestInit.redirect: 'manual'` having no effect. Wrapping the base
+// fetch itself, rather than relying on requestInit, forces redirect:
+// 'manual' on every call the transport makes, regardless of which internal
+// path constructs the request.
+function createRedirectSafeFetch(baseFetch: typeof globalThis.fetch): typeof globalThis.fetch {
+  return (input, init) => baseFetch(input, { ...init, redirect: 'manual' })
+}
+
 // --- Shared deadline helper ---------------------------------------------
 // Races an operation against BOTH the caller's AbortSignal (the coordinator's
 // shared deadline) and this call's own internal timeout, and guarantees the
 // abort listener is always removed. Mirrors the pattern already reviewed in
 // web-search.ts / group-availability.ts — kept local rather than shared
-// across files since each adapter's cleanup semantics differ (this one also
-// closes the MCP client/transport on abort).
+// across files since each adapter's cleanup semantics differ. This helper
+// only decides when to stop *waiting*; cleaning up whatever the operation
+// opened (e.g. an MCP client/transport) is each call site's own
+// responsibility via try/finally around the call to this function.
 function raceAgainstDeadline<T>(
   operation: (signal: AbortSignal) => Promise<T>,
   consumerSignal: AbortSignal,
   timeoutMs: number,
-  onAbort: () => void,
 ): Promise<T> {
   const controller = new AbortController()
   const forwardAbort = (): void => {
     controller.abort()
   }
-  if (consumerSignal.aborted) {
-    forwardAbort()
-  } else {
-    consumerSignal.addEventListener('abort', forwardAbort, { once: true })
-  }
-  const timer = setTimeout(forwardAbort, timeoutMs)
 
   return new Promise<T>((resolve, reject) => {
     let settled = false
+    // Declared before anything that could synchronously trigger settle()
+    // below (an already-aborted consumerSignal causes a synchronous abort
+    // cascade through forwardAbort -> controller.abort() -> onTimeoutOrAbort
+    // -> settle, which reads `timer`) — must exist by then.
+    const timer = setTimeout(forwardAbort, timeoutMs)
     const settle = (run: () => void): void => {
       if (settled) return
       settled = true
@@ -94,12 +110,21 @@ function raceAgainstDeadline<T>(
       run()
     }
     const onTimeoutOrAbort = (): void => {
-      onAbort()
       settle(() => {
         reject(new MergeCalendarError('timeout'))
       })
     }
+    // Attached before checking/forwarding consumerSignal so an
+    // already-aborted consumerSignal still reaches onTimeoutOrAbort: the
+    // 'abort' event only fires once, at the moment abort() is called, so a
+    // listener added after that point would never see it.
     controller.signal.addEventListener('abort', onTimeoutOrAbort, { once: true })
+
+    if (consumerSignal.aborted) {
+      forwardAbort()
+    } else {
+      consumerSignal.addEventListener('abort', forwardAbort, { once: true })
+    }
 
     operation(controller.signal).then(
       (value) => {
@@ -226,7 +251,6 @@ export function createMergeIdentityResolver(
       },
       signal,
       parsed.timeout_ms,
-      () => undefined,
     )
   }
 }
@@ -354,9 +378,9 @@ export function buildCalendarToolArguments(
   const required = tool.inputSchema.required ?? []
 
   if (startField === undefined || endField === undefined) {
-    // Required start/end fields aren't among the names we recognize —
-    // refuse to guess. The caller falls back to chat inference.
-    if (required.length > 0) return undefined
+    // Neither a recognized start nor end field name is declared — refuse to
+    // guess regardless of whether the tool has other required fields. The
+    // caller falls back to chat inference.
     return undefined
   }
 
@@ -409,8 +433,9 @@ export type CalendarMcpClient = Pick<Client, 'listTools' | 'callTool'>
 export async function queryCalendarAvailabilityViaClient(
   client: CalendarMcpClient,
   candidateInterval: { start: string; end: string },
+  signal?: AbortSignal,
 ): Promise<unknown> {
-  const listed = await client.listTools().catch(() => {
+  const listed = await client.listTools(undefined, { signal }).catch(() => {
     throw new MergeCalendarError('upstream_error')
   })
 
@@ -429,9 +454,11 @@ export async function queryCalendarAvailabilityViaClient(
     return { availability: 'pending', pending_reason: 'upstream_error' }
   }
 
-  const result = await client.callTool({ name: tool.name, arguments: toolArguments }).catch(() => {
-    throw new MergeCalendarError('upstream_error')
-  })
+  const result = await client
+    .callTool({ name: tool.name, arguments: toolArguments }, undefined, { signal })
+    .catch(() => {
+      throw new MergeCalendarError('upstream_error')
+    })
 
   const knownErrorType =
     findKnownErrorType(result.structuredContent) ?? findKnownErrorType(result.content)
@@ -480,27 +507,29 @@ export function createMergeCalendarClient(
 
     try {
       return await raceAgainstDeadline(
-        async () => {
+        async (raceSignal) => {
           const transport = new StreamableHTTPClientTransport(endpointUrl, {
             requestInit: {
               headers: { Authorization: `Bearer ${parsed.access_key}` },
-              redirect: 'manual',
             },
-            ...(parsed.fetch === undefined ? {} : { fetch: parsed.fetch }),
+            fetch: createRedirectSafeFetch(parsed.fetch ?? globalThis.fetch),
           })
           client = new Client({ name: 'corgi-merge-calendar-client', version: '0.1.0' })
 
           try {
-            await client.connect(transport)
+            await client.connect(transport, { signal: raceSignal })
           } catch {
             throw new MergeCalendarError('upstream_error')
           }
 
-          return await queryCalendarAvailabilityViaClient(client, query.candidate_interval)
+          return await queryCalendarAvailabilityViaClient(
+            client,
+            query.candidate_interval,
+            raceSignal,
+          )
         },
         signal,
         parsed.timeout_ms,
-        () => undefined,
       )
     } finally {
       await client?.close().catch(() => undefined)

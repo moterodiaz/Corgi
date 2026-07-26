@@ -533,6 +533,32 @@ describe('group-scoped calendar availability', () => {
     })
   })
 
+  it('reports no_chat_evidence when chat inference itself resolves inconclusively', async () => {
+    const oneMemberSnapshot = {
+      ...GROUP_A_SNAPSHOT,
+      active_members: [GROUP_A_MEMBERS[0]],
+    }
+    const harness = dependencyHarness({
+      resolveAuthorizedGroupSnapshot: () => Promise.resolve(oneMemberSnapshot),
+      resolveGlobalToolIdentity: () => Promise.resolve(null),
+      inferChatAvailability: () => Promise.resolve({ availability: 'pending' }),
+    })
+    const coordinate = createGroupAvailabilityCoordinator(harness.dependencies)
+
+    await expect(coordinate(request())).resolves.toEqual({
+      group_id: 'group-a',
+      membership_revision: 7,
+      members: [
+        {
+          group_member_id: 'group-a-sam',
+          availability: 'pending',
+          source: 'none',
+          pending_reason: 'no_chat_evidence',
+        },
+      ],
+    })
+  })
+
   it.each([
     {
       name: 'a malformed calendar response',
@@ -577,6 +603,56 @@ describe('group-scoped calendar availability', () => {
     })
     expect(harness.inferChatAvailability).toHaveBeenCalledOnce()
   })
+
+  it.each([
+    {
+      name: 'a non-CalendarQueryError timeout (e.g. the Merge adapter package)',
+      code: 'timeout' as const,
+      calendar_warning: 'timeout' as const,
+    },
+    {
+      name: 'a non-CalendarQueryError upstream_error (e.g. the Merge adapter package)',
+      code: 'upstream_error' as const,
+      calendar_warning: 'upstream_error' as const,
+    },
+  ])(
+    'classifies $name by its .code even though it is not an instanceof CalendarQueryError',
+    async ({ code, calendar_warning }) => {
+      // A concrete dependency implementation (like merge-calendar.ts's
+      // MergeCalendarError) never extends this module's CalendarQueryError —
+      // classifyDependencyError must recognize the shape, not the class.
+      class OtherPackageError extends Error {
+        readonly code = code
+        constructor() {
+          super(`other package failed: ${code}`)
+          this.name = 'OtherPackageError'
+        }
+      }
+      const oneMemberSnapshot = {
+        ...GROUP_A_SNAPSHOT,
+        active_members: [GROUP_A_MEMBERS[0]],
+      }
+      const harness = dependencyHarness({
+        resolveAuthorizedGroupSnapshot: () => Promise.resolve(oneMemberSnapshot),
+        queryCalendarAvailability: () => Promise.reject(new OtherPackageError()),
+        inferChatAvailability: () => Promise.resolve({ availability: 'free' }),
+      })
+      const coordinate = createGroupAvailabilityCoordinator(harness.dependencies)
+
+      await expect(coordinate(request())).resolves.toEqual({
+        group_id: 'group-a',
+        membership_revision: 7,
+        members: [
+          {
+            group_member_id: 'group-a-sam',
+            availability: 'free',
+            source: 'chat',
+            calendar_warning,
+          },
+        ],
+      })
+    },
+  )
 
   it('returns revision metadata without exposing Merge identity or raw calendar data', async () => {
     const secretMergeId = 'merge-secret-sam'

@@ -115,8 +115,12 @@ export const CalendarPendingReasonSchema = z.enum([
 
 export type CalendarPendingReason = z.infer<typeof CalendarPendingReasonSchema>
 
+// No 'missing_identity' literal: a null/undefined identity result routes
+// straight into the same chat-fallback flow as an identity-lookup error
+// (see availabilityForMember), so it's indistinguishable from those other
+// reasons by the time a pending_reason is produced — an enum value no code
+// path can ever emit is dead code, not a real distinction.
 export const PendingReasonSchema = z.enum([
-  'missing_identity',
   'reconnect_required',
   'timeout',
   'upstream_error',
@@ -336,8 +340,20 @@ const callDependency = <Result>(
   })
 }
 
+// Duck-typed rather than `instanceof CalendarQueryError` so any concrete
+// dependency implementation (e.g. merge-calendar.ts's MergeIdentityError /
+// MergeCalendarError) is recognized without this file importing that
+// module — importing it would be circular, since merge-calendar.ts already
+// imports types from here. Any error exposing the same
+// `{ code: 'timeout' | 'upstream_error' }` shape is treated the same way.
+const hasKnownDependencyErrorCode = (error: unknown): error is { code: CalendarQueryErrorCode } =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  (error.code === 'timeout' || error.code === 'upstream_error')
+
 const classifyDependencyError = (error: unknown): CalendarQueryErrorCode => {
-  if (error instanceof CalendarQueryError) {
+  if (hasKnownDependencyErrorCode(error)) {
     return error.code
   }
 

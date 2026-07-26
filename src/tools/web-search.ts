@@ -57,6 +57,13 @@ export const EventSearchInputSchema = z
   })
 export type EventSearchInput = z.input<typeof EventSearchInputSchema>
 
+// Tavily's response is an externally-versioned third-party shape we don't
+// control — use .passthrough() rather than .strict() at every level here
+// (matching the convention already used for Merge's response shapes in
+// merge-calendar.ts) so an additive field Tavily introduces later doesn't
+// break every search call until this schema is patched. .strict() stays on
+// our own request/output contracts below (VenueSearchInputSchema,
+// SearchEvidenceSchema, etc.) — those are ours to define exactly.
 const TavilyImageSchema = z.union([
   HttpUrlSchema,
   z
@@ -64,7 +71,7 @@ const TavilyImageSchema = z.union([
       url: HttpUrlSchema,
       description: z.string(),
     })
-    .strict(),
+    .passthrough(),
 ])
 
 export const TavilySearchSuccessSchema = z
@@ -83,7 +90,7 @@ export const TavilySearchSuccessSchema = z
           favicon: HttpUrlSchema.nullable().optional(),
           images: z.array(TavilyImageSchema).optional(),
         })
-        .strict(),
+        .passthrough(),
     ),
     response_time: z.union([
       z.number().nonnegative(),
@@ -94,16 +101,16 @@ export const TavilySearchSuccessSchema = z
         topic: z.enum(['general', 'news', 'finance']).optional(),
         search_depth: z.enum(['advanced', 'basic', 'fast', 'ultra-fast']).optional(),
       })
-      .strict()
+      .passthrough()
       .optional(),
     usage: z
       .object({
         credits: z.number().nonnegative(),
       })
-      .strict(),
+      .passthrough(),
     request_id: ProviderRequestIdSchema,
   })
-  .strict()
+  .passthrough()
 export type TavilySearchSuccess = z.infer<typeof TavilySearchSuccessSchema>
 
 export const SearchEvidenceResultSchema = z
@@ -433,6 +440,13 @@ function safeProviderRequestId(value: string | undefined): string | undefined {
   return parsed.success ? parsed.data : undefined
 }
 
+// Speculative: docs.tavily.com documents request_id only as a JSON body
+// field on successful (200) responses (verified 2026-07-25), with no
+// documented header equivalent for any status, including the error
+// statuses this function is actually called for. Kept as a best-effort
+// attempt in case Tavily's real runtime behavior differs from its docs or
+// adds such a header later — it fails safe (returns undefined) if absent,
+// so this is dead-weight rather than incorrect if the header never exists.
 function responseRequestId(
   response: Response,
   prohibitedValues: readonly string[],
@@ -720,6 +734,11 @@ class TavilySearchAdapterImplementation implements TavilySearchAdapter {
               'Content-Type': 'application/json',
             },
             body,
+            // Never follow a redirect on a request carrying the API key —
+            // a compromised/misconfigured base_url could otherwise
+            // redirect the credential to a different host. Falls through
+            // to the default (non-retryable) upstream error branch below.
+            redirect: 'manual',
             signal,
           }),
         ),
