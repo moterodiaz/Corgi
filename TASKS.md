@@ -31,7 +31,7 @@ Every bullet below is one unit of work for one person (or one agent): one branch
 _Depends on Phase 0._
 
 - [ ] **P1-1. Zod schemas** for `PlanObject` (matching the shape in `design-doc.md` §8 exactly, including `version` and `status` enum), `PersonProfile`, `GroupProfile`, `TranscriptEntry` in `/src/types`, with tests validating both good and malformed example payloads.
-- [ ] **P1-2. Prisma schema:** `GroupProfile`, `PersonProfile`, `GroupMember` (including the nullable, group-scoped Merge Registered User identifier required by P4-4), `PlanObject` (versioned — a new version is a new row, never an in-place mutation of a prior one), `TranscriptBuffer`, plus the initial migration.
+- [ ] **P1-2. Prisma schema:** `Person`, `MergeIdentity` (one nullable Merge Registered User identifier per person, reusable across groups), `GroupProfile`, `PersonProfile`, `GroupMember` (the group authorization boundary), `PlanObject` (versioned — a new version is a new row, never an in-place mutation of a prior one), `TranscriptBuffer`, plus the initial migration. Learned profiles, plans, transcripts, and normalized calendar observations remain group-scoped even though the connection identity is reusable.
 - [ ] **P1-3. Repository layer** (`/src/store`) wrapping Prisma: profile upsert/merge (confidence/recency-aware, per §6), plan-object version-bump-on-write, transcript append/read scoped per group. Unit tests per operation, including the "don't mutate a prior plan version" invariant.
 - [ ] **P1-4. Seed fixtures** _(depends on P0-1)_: a fake group chat transcript that plays out the §11 demo narrative, plus the venue/event dataset chosen in P0-1, in `/tests/fixtures`. Fixtures validate against the P1-1 schemas as part of their own test.
 
@@ -61,8 +61,8 @@ _Depends on Phase 1 (needs the schemas and repositories to read/write against)._
 _Depends on P0-1 (data source decision) and P0-2 (Merge credentials)._
 
 - [x] **P4-1. Spike: confirm the current Merge Agent Handler tool-registration API** against live docs at `docs.merge.dev`, not from memory.
-- [ ] **P4-2. `search_venues` tool wrapper:** typed request/response, Zod-validated, explicit timeout, tests against the P0-1 data source.
-- [ ] **P4-3. `search_events` tool wrapper:** same pattern, tests.
+- [x] **P4-2. `search_venues` tool wrapper:** typed request/response, Zod-validated, explicit timeout, tests against the P0-1 data source.
+- [x] **P4-3. `search_events` tool wrapper:** same pattern, tests.
 - [ ] **P4-4. Calendar availability tool wrapper** + the chat-text-inference fallback from §5 built as a real branch (not a TODO) for when no calendar is connected. Tests for both the connected and fallback paths.
 - [ ] **P4-5. Wire real tool calls into Plan Synthesis** (replacing the P3-4 stub). Integration tests.
 
@@ -70,7 +70,7 @@ _Depends on P0-1 (data source decision) and P0-2 (Merge credentials)._
 
 _Depends on Phases 2, 3, and 4._
 
-- [ ] **P5-1. Plan state machine:** `proposed → revising → confirmed → abandoned`, an explicit valid-transition table, tests that specifically assert invalid transitions are rejected.
+- [ ] **P5-1. Plan state machine:** `proposed → revising → confirmed → abandoned`, an explicit valid-transition table, tests that specifically assert invalid transitions are rejected. `proposed → confirmed` must atomically check the authoritative current active-member set: every active member explicitly responded `yes`, none is busy, any explicit `no`/busy member vetoes the candidate, and missing/pending evidence blocks confirmation.
 - [ ] **P5-2. Wire the full inbound loop:** message in → transcript append (P2-6) → periodic context extraction (P3-3) → speak/silent classifier (P3-2) → branch to synthesis (P3-4) or diff (P3-5) → transport output (P2-5). One integration test driving this end-to-end against the mock `TransportPort` and mocked Claude/Merge.
 - [ ] **P5-3. Transparency query handling** (§9): detect a direct "how do you know that?" / "what have you picked up on?" ask and answer plainly from the stored profile. Tests.
 - [ ] **P5-4. Card-interaction routing:** 👍/👎/"suggest something else" from P2-4 routed directly into the Feedback/Diff Layer (P3-5) as structured signal, bypassing free-text NLU entirely. Tests.
