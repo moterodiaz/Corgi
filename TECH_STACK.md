@@ -61,7 +61,7 @@ Every agent (human or AI) working in this repo must read this file before writin
 - **Vitest** for unit and integration tests (Jest-compatible API, fast, native TS/ESM support).
 - **Supertest** (or Fastify's built-in `.inject()`) for HTTP endpoint tests.
 - **MSW** (Mock Service Worker) or `nock` to intercept outbound HTTP in tests — Claude, Merge, and Photon calls are mocked at the network boundary, not by hand-rolling fake client objects that drift from the real client's behavior.
-- See [AGENTS.md](./AGENTS.md) for the actual testing *rules* (what must be tested, how to avoid tautological tests). This file just names the tools.
+- See [AGENTS.md](./AGENTS.md) for the actual testing _rules_ (what must be tested, how to avoid tautological tests). This file just names the tools.
 
 ## Lint / Format
 
@@ -113,5 +113,7 @@ Everything above is the approved list. To add a new dependency:
 1. Confirm it actually exists: check it on the npm registry, look at weekly download count, last publish date, and the GitHub repo. A package with near-zero downloads or no repo is a hallucination-adjacent red flag — do not install it on the strength of a model's confidence alone.
 2. Pin an exact version (no bare `^`/`~` for anything security- or correctness-critical; pnpm's lockfile covers the rest).
 3. Add it to this file in the same PR that introduces it, with a one-line reason. A dependency that shows up in `package.json` but not here is a review blocker.
+
+- `@anthropic-ai/sdk@0.115.0` — official Anthropic TypeScript SDK used by the Claude client wrapper.
 
 See [AGENTS.md](./AGENTS.md) for the full rule set this stack is designed to support.
