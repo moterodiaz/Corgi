@@ -7,6 +7,12 @@ import type { ReasoningRepository } from '../store/repository.js';
 export const contextExtractionSchema = z.object({
   people: z.array(personProfileSchema),
   group: groupProfileSchema,
+}).superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const [index, person] of value.people.entries()) {
+    if (seen.has(person.personId)) context.addIssue({ code: 'custom', path: ['people', index, 'personId'], message: 'Each person may have one delta per extraction' });
+    seen.add(person.personId);
+  }
 });
 export type ContextExtraction = z.infer<typeof contextExtractionSchema>;
 

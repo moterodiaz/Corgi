@@ -27,4 +27,10 @@ describe('plan synthesis', () => {
     await expect(synthesizePlan(client, repo, { groupId: 'g1', groupProfile: { ...profiles, groupId: 'g2' }, personProfiles: [], candidates: [candidate] })).rejects.toThrow('target group');
     expect(client.requests).toHaveLength(0);
   });
+  it('rejects a plan that invents a venue outside the validated candidates', async () => {
+    const repo = new InMemoryReasoningRepository();
+    const client = new QueueClaudeClient([{ plan: { ...plan(1), venue: { name: 'Invented Venue', source_tool: 'merge_search_venues', ref_id: 'not-a-candidate' } }, chatMessage: 'Try this place.' }]);
+    await expect(synthesizePlan(client, repo, { groupId: 'g1', groupProfile: profiles, personProfiles: [], candidates: [candidate] })).rejects.toThrow('validated candidate');
+    expect(await repo.getCurrentPlan('g1')).toBeUndefined();
+  });
 });

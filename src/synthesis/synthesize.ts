@@ -31,6 +31,8 @@ export const synthesizePlan = async (client: StructuredClaudeClient, repository:
   if (output.plan.version !== expectedVersion) throw new Error(`Synthesis must produce plan version ${String(expectedVersion)}`);
   if (currentPlan && output.plan.plan_id !== currentPlan.plan_id) throw new Error('A revision must retain the existing plan ID');
   if (output.plan.status !== (currentPlan ? 'revising' : 'proposed')) throw new Error('Synthesis returned an invalid plan status');
+  const matchesCandidate = candidates.some((candidate) => candidate.activity === output.plan.activity && candidate.venue.name === output.plan.venue.name && candidate.venue.source_tool === output.plan.venue.source_tool && candidate.venue.ref_id === output.plan.venue.ref_id && candidate.datetime === output.plan.datetime && candidate.cost_tier === output.plan.cost_tier);
+  if (!matchesCandidate) throw new Error('Synthesis must use a validated candidate');
   await repository.saveNextPlan(input.groupId, output.plan);
   return output;
 };

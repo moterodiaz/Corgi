@@ -29,4 +29,11 @@ describe('context extraction', () => {
     const client = new QueueClaudeClient([{ group: { groupId: 'other', sharedInterests: [], runningJokes: [], initiators: [], pastHangoutSentiment: [] }, people: [] }]);
     await expect(extractAndMergeContext(client, repo, 'g1', [{ groupId: 'g1', senderId: 'sam', text: 'hello', sentAt: iso }])).rejects.toThrow('crossed group boundary');
   });
+  it('rejects duplicate deltas for one person instead of racing two profile merges', async () => {
+    const repo = new InMemoryReasoningRepository();
+    const person = { groupId: 'g1', personId: 'sam', interests: [signal(1)], budgetSignals: [], constraints: [], availability: [] };
+    const client = new QueueClaudeClient([{ group: { groupId: 'g1', sharedInterests: [], runningJokes: [], initiators: [], pastHangoutSentiment: [] }, people: [person, person] }]);
+    await expect(extractAndMergeContext(client, repo, 'g1', [{ groupId: 'g1', senderId: 'sam', text: 'hello', sentAt: iso }])).rejects.toThrow('one delta');
+    expect(await repo.getPersonProfiles('g1')).toEqual([]);
+  });
 });

@@ -26,10 +26,12 @@ describe('feedback diff layer', () => {
   });
   it('leaves plan state untouched on full reject and requests a fresh synthesis', async () => {
     const repo = await withCurrentPlan();
+    await repo.mergePersonProfile({ groupId: 'g1', personId: 'sam', interests: [{ value: 'climbing', confidence: 0.8, mentions: 3, observedAt: '2026-08-02T14:00:00-07:00' }], budgetSignals: [], constraints: [], availability: [] });
     const client = new QueueClaudeClient([{ kind: 'full_reject', reason: 'The group wants a completely different activity.' }]);
     const result = await applyFeedbackDiff(client, repo, { groupId: 'g1', feedback: 'Let us do something totally different.' });
     expect(result).toEqual({ kind: 'full_reject', requiresSynthesis: true, reason: 'The group wants a completely different activity.' });
     expect((await repo.getCurrentPlan('g1'))?.version).toBe(1);
+    expect(await repo.getPersonProfiles('g1')).toMatchObject([{ personId: 'sam', interests: [{ value: 'climbing', mentions: 3 }] }]);
   });
   it('rejects a malformed hard-constraint diff with no changed field', async () => {
     const repo = await withCurrentPlan();
