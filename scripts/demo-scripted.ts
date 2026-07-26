@@ -27,8 +27,9 @@ import { NEW_MESSAGE_EVENT } from '../src/transport/BlueBubblesInboundAdapter.js
 
 const TRIGGER = 'friend group'
 // If the other machine hasn't claimed a role-1 line within this long, this
-// machine sends it instead — a safety net, not the expected path.
-const SOLO_FALLBACK_DELAY_MS = 20_000
+// machine sends it instead — a safety net, not the expected path. Kept
+// short on purpose so a slow/missing second machine never looks stalled.
+const SOLO_FALLBACK_DELAY_MS = 1_500
 
 function requireEnv(name: string, hint: string): string {
   const value = process.env[name]
@@ -63,28 +64,29 @@ function jitter(baseMs: number, spreadMs: number): number {
 }
 
 // [role (0 = trigger sender only; 1 = the other person), gap-before-base-ms,
-// gap-before-spread-ms, text]. Gaps vary every run, never a fixed interval.
+// gap-before-spread-ms, text]. ~0.5s between every line — fast and
+// predictable, not trying to look human-paced anymore.
 const LINES: Array<[number, number, number, string]> = [
   [0, 0, 0, "ok we should actually do something this weekend, who's free"],
-  [1, 3_000, 6_000, 'yeah im down, just not too expensive lol'],
-  [1, 8_000, 10_000, 'same tbh this month has been rough'],
-  [1, 2_000, 4_000, 'been wanting to try bouldering for a while ngl'],
+  [1, 500, 0, 'yeah im down, just not too expensive lol'],
+  [1, 500, 0, 'same tbh this month has been rough'],
+  [1, 500, 0, 'been wanting to try bouldering for a while ngl'],
   [
     0,
-    15_000,
-    10_000,
+    500,
+    0,
     "ooh ok what about The Bouldering Project sat around 3pm? you mentioned wanting to get back into climbing and it's pretty low-key on cost",
   ],
-  [1, 5_000, 8_000, 'hard pass that place is kinda pricey ngl'],
-  [1, 4_000, 6_000, 'yeah need something cheaper'],
+  [1, 500, 0, 'hard pass that place is kinda pricey ngl'],
+  [1, 500, 0, 'yeah need something cheaper'],
   [
     0,
-    10_000,
-    8_000,
+    500,
+    0,
     'how about a board game cafe instead, sat at 4? way easier on the wallet and still a fun hang',
   ],
-  [1, 3_000, 5_000, 'omg yes that works'],
-  [0, 6_000, 6_000, '🎉 locked in! board game cafe sat at 4. see you there'],
+  [1, 500, 0, 'omg yes that works'],
+  [0, 500, 0, '🎉 locked in! board game cafe sat at 4. see you there'],
 ]
 
 async function main(): Promise<void> {
