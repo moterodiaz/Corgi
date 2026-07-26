@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "p2-2:spike": "tsx scripts/p2-2-miniapp-inplace-update-spike.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check": "pnpm test"
   },
   "dependencies": {
     "fastify": "^5.10.0",
