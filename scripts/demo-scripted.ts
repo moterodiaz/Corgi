@@ -27,6 +27,12 @@ import { NEW_MESSAGE_EVENT } from '../src/transport/BlueBubblesInboundAdapter.js
 
 const TRIGGER = 'friend group'
 const OTHER_ROLE_HANDICAP_MS = 6_000
+// If no other machine claims an "other participant" line within this long,
+// the starter's own machine sends it instead — so the demo still completes
+// solo (e.g. while testing, or if a friend's machine never came online)
+// instead of stalling forever waiting for a participant that isn't there.
+// Real other machines finish their normal jitter well before this elapses.
+const SOLO_FALLBACK_DELAY_MS = 20_000
 
 function requireEnv(name: string, hint: string): string {
   const value = process.env[name]
@@ -105,13 +111,17 @@ async function main(): Promise<void> {
     const line = LINES[index]
     if (line === undefined) return
     const [lineRole, gapBase, gapSpread, text] = line
-    const myTurn = lineRole === 0 ? amITriggerSender : !amITriggerSender
-    if (!myTurn) return
+    if (lineRole === 0 && !amITriggerSender) return // role-0 lines are exclusive to the trigger sender
 
     sending = true
     const startIndex = index
-    const handicap =
-      lineRole !== 0 && lastTurnWonByMe ? OTHER_ROLE_HANDICAP_MS + Math.random() * 8_000 : 0
+    let handicap = 0
+    if (lineRole !== 0) {
+      if (lastTurnWonByMe) handicap += OTHER_ROLE_HANDICAP_MS + Math.random() * 8_000
+      // The starter defers to real "other" participants if any exist, but
+      // will pick up the line itself if nobody else claims it in time.
+      if (amITriggerSender) handicap += SOLO_FALLBACK_DELAY_MS
+    }
     await sleep(jitter(gapBase, gapSpread) + handicap)
 
     // Someone else may already have sent this turn while we waited.
