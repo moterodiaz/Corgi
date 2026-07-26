@@ -1,0 +1,66 @@
+// DATABASE_URL must be set in .env (e.g. file:./dev.db for local, file:./test.db for tests).
+// Swap provider to "postgresql" + update DATABASE_URL for Postgres — no code changes needed.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model GroupProfile {
+  id              String   @id @default(uuid())
+  groupId         String   @unique
+  sharedInterests String   // JSON: string[]
+  initiators      String   // JSON: string[] (person_ids)
+  followers       String   // JSON: string[] (person_ids)
+  sentimentNotes  String   // JSON: string[]
+  updatedAt       DateTime @updatedAt
+}
+
+model PersonProfile {
+  id                   String   @id @default(uuid())
+  personId             String
+  groupId              String
+  name                 String
+  interests            String   // JSON: ActivityMention[]
+  budgetSignals        String   // JSON: string[]
+  constraints          String   // JSON: string[]
+  availabilityMentions String   // JSON: string[]
+  updatedAt            DateTime @updatedAt
+
+  @@unique([personId, groupId])
+}
+
+// Never update a prior version row — each revision is a new row.
+// The (planId, version) unique constraint enforces this at the DB level.
+model PlanObject {
+  id        String   @id @default(uuid())
+  planId    String
+  version   Int
+  groupId   String
+  status    String
+  activity  String
+  venue     String   // JSON: Venue
+  datetime  String
+  costTier  String
+  attendees String   // JSON: Record<string, "yes"|"no"|"pending">
+  rationale String
+  createdAt DateTime @default(now())
+
+  @@unique([planId, version])
+  @@index([groupId, planId])
+}
+
+model TranscriptBuffer {
+  id        String   @id @default(uuid())
+  groupId   String
+  sender    String
+  text      String
+  timestamp String   // ISO-8601
+  createdAt DateTime @default(now())
+
+  @@index([groupId])
+}

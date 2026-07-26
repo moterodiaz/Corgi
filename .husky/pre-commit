@@ -1,0 +1,3 @@
+pnpm lint-staged
+# gitleaks: install gitleaks binary and uncomment to enable secret scanning
+# gitleaks protect --staged --redact
