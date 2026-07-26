@@ -63,7 +63,7 @@ _Depends on P0-1 (data source decision) and P0-2 (Merge credentials)._
 - [x] **P4-1. Spike: confirm the current Merge Agent Handler tool-registration API** against live docs at `docs.merge.dev`, not from memory.
 - [x] **P4-2. `search_venues` tool wrapper:** typed request/response, Zod-validated, explicit timeout, tests against the P0-1 data source.
 - [x] **P4-3. `search_events` tool wrapper:** same pattern, tests.
-- [ ] **P4-4. Calendar availability tool wrapper** + the chat-text-inference fallback from §5 built as a real branch (not a TODO) for when no calendar is connected. Tests for both the connected and fallback paths.
+- [x] **P4-4. Calendar availability tool wrapper** + the chat-text-inference fallback from §5 built as a real branch (not a TODO) for when no calendar is connected. Tests for both the connected and fallback paths.
 - [ ] **P4-5. Wire real tool calls into Plan Synthesis** (replacing the P3-4 stub). Integration tests.
 
 ## Phase 5 — Orchestrator (State Machine)
