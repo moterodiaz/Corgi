@@ -79,7 +79,7 @@ Every bullet below is one unit of work for one person (or one agent): one branch
 *Depends on P2-2 (in-place update spike) and P1-1 (Plan Object shape).*
 
 - [x] **P6-1. Card template:** renders activity, venue, datetime, cost tier, rationale, and per-attendee RSVP state from the `PlanObject` shape. Rendering/snapshot tests.
-- [ ] **P6-2. In-place card update on revision** — same card edited, not a new message posted. Tests.
+- [x] **P6-2. In-place card update on revision** — same card edited, not a new message posted. Tests.
 - [ ] **P6-3. Poll-style component** for quick binary asks ("does Saturday work?"). Tests.
 
 ## Phase 7 — Integration, Security & Demo Readiness
