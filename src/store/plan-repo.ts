@@ -55,6 +55,17 @@ export async function getLatestPlanVersion(groupId: string, planId: string): Pro
   return rowToPlan(row)
 }
 
+// The reasoning/orchestrator boundary needs the current plan for a group before it
+// can apply a versioned diff. Rows remain append-only; this only reads the newest one.
+export async function getCurrentPlanForGroup(groupId: string): Promise<Plan | null> {
+  const row = await prisma.planObject.findFirst({
+    where: { groupId },
+    orderBy: [{ createdAt: 'desc' }, { version: 'desc' }],
+  })
+  if (!row) return null
+  return rowToPlan(row)
+}
+
 // Used by tests and auditing; not exposed to the orchestrator.
 export async function getAllPlanVersions(groupId: string, planId: string): Promise<Plan[]> {
   const rows = await prisma.planObject.findMany({

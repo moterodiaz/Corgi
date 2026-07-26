@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { StructuredClaudeClient } from './client.js';
-import { CLAUDE_MODELS } from './models.js';
+import { CLASSIFIER_MODEL } from './models.js'
 import type { GroupProfile, PersonProfile, TranscriptEntry } from '../types/index.js';
 
 export const speakDecisionSchema = z.object({
@@ -14,7 +14,7 @@ const systemPrompt = `You decide whether a thoughtful group-chat hangout assista
 export const classifyShouldSpeak = async (client: StructuredClaudeClient, input: {
   transcript: TranscriptEntry[]; groupProfile?: GroupProfile; personProfiles: PersonProfile[];
 }): Promise<SpeakDecision> => client.call({
-  model: CLAUDE_MODELS.classifier,
+  model: CLASSIFIER_MODEL,
   system: systemPrompt,
   user: `<trusted_profiles>${JSON.stringify({ groupProfile: input.groupProfile, personProfiles: input.personProfiles })}</trusted_profiles>\n<untrusted_transcript>${JSON.stringify(input.transcript)}</untrusted_transcript>`,
   schema: speakDecisionSchema,

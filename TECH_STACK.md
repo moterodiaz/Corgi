@@ -121,5 +121,5 @@ See [AGENTS.md](./AGENTS.md) for the full rule set this stack is designed to sup
 ### E2 implementation dependencies
 
 - `@anthropic-ai/sdk` `0.115.0` — Claude Messages API with forced tool use.
-- `zod` `4.4.3` — validation of every structured Claude boundary and shared contracts.
+- `zod-to-json-schema` `3.25.2` — converts the foundation's Zod v3 schemas to Claude tool JSON Schema.
 - `nock` `14.0.16` — HTTP-boundary Claude client tests.

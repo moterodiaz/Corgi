@@ -18,8 +18,10 @@ describe('E2 evaluation flywheel', () => {
   });
 
   it('attributes a wrong decision to the exact scenario and case', async () => {
-    const result = await evaluateSpeakClassifier(E2_EVAL_CASES.slice(0, 2), async (testCase) => ({ decision: testCase.id === 'eval-ready-0' ? 'silent' : testCase.expected, rationale: 'Test response.' }));
-    expect(result).toMatchObject({ total: 2, correct: 1, accuracy: 0.5, failures: [{ id: 'eval-ready-0', scenario: 'ready_to_plan', expected: 'propose', actual: 'silent' }] });
+    const first = E2_EVAL_CASES[0]
+    if (!first) throw new Error('Evaluation corpus is unexpectedly empty')
+    const result = await evaluateSpeakClassifier(E2_EVAL_CASES.slice(0, 2), async (testCase) => ({ decision: testCase.id === first.id ? 'silent' : testCase.expected, rationale: 'Test response.' }));
+    expect(result).toMatchObject({ total: 2, correct: 1, accuracy: 0.5, failures: [{ id: first.id, scenario: 'ready_to_plan', expected: 'propose', actual: 'silent' }] });
     expect(result.byDecision.propose).toMatchObject({ expected: 1, predicted: 0, correct: 0, precision: 0, recall: 0 });
   });
 });

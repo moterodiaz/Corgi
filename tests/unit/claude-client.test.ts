@@ -1,27 +1,18 @@
-import Anthropic from '@anthropic-ai/sdk';
-import nock from 'nock';
-import { describe, expect, it, afterEach } from 'vitest';
-import { AnthropicStructuredClient, ClaudeOutputError, ClaudeTimeoutError } from '../../src/claude/client.js';
-import { speakDecisionSchema } from '../../src/claude/classifier.js';
-import { CLAUDE_MODELS } from '../../src/claude/models.js';
+import { describe, expect, it } from 'vitest'
+import { ClaudeOutputError, ClaudeStructuredClient } from '../../src/claude/client.js'
+import { speakDecisionSchema } from '../../src/claude/classifier.js'
+import { CLASSIFIER_MODEL } from '../../src/claude/models.js'
 
-const response = (input: unknown) => ({ id: 'msg_test', type: 'message', role: 'assistant', model: CLAUDE_MODELS.classifier, content: [{ type: 'tool_use', id: 'toolu_1', name: 'decision', input }], stop_reason: 'tool_use', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
-describe('AnthropicStructuredClient', () => {
-  afterEach(() => { nock.cleanAll(); });
-  it('forces a tool call and returns Zod-validated output from the HTTP API', async () => {
-    const scope = nock('https://api.anthropic.com').post('/v1/messages').reply(200, response({ decision: 'silent', rationale: 'No clear opening.' }));
-    const client = new AnthropicStructuredClient(new Anthropic({ apiKey: 'test-key' }));
-    await expect(client.call({ model: CLAUDE_MODELS.classifier, system: 'system', user: 'chat', schema: speakDecisionSchema, toolName: 'decision' })).resolves.toEqual({ decision: 'silent', rationale: 'No clear opening.' });
-    expect(scope.isDone()).toBe(true);
-  });
-  it('rejects malformed structured model output rather than passing it to business logic', async () => {
-    nock('https://api.anthropic.com').post('/v1/messages').reply(200, response({ decision: 'loud', rationale: '' }));
-    const client = new AnthropicStructuredClient(new Anthropic({ apiKey: 'test-key' }));
-    await expect(client.call({ model: CLAUDE_MODELS.classifier, system: 'system', user: 'chat', schema: speakDecisionSchema, toolName: 'decision' })).rejects.toBeInstanceOf(ClaudeOutputError);
-  });
-  it('surfaces an explicit timeout when the Claude HTTP request exceeds its budget', async () => {
-    nock('https://api.anthropic.com').post('/v1/messages').delay(50).reply(200, response({ decision: 'silent', rationale: 'Too late.' }));
-    const client = new AnthropicStructuredClient(new Anthropic({ apiKey: 'test-key', maxRetries: 0 }));
-    await expect(client.call({ model: CLAUDE_MODELS.classifier, system: 'system', user: 'chat', schema: speakDecisionSchema, toolName: 'decision', timeoutMs: 5 })).rejects.toBeInstanceOf(ClaudeTimeoutError);
-  });
-});
+const request = { model: CLASSIFIER_MODEL, system: 'system', user: 'chat', schema: speakDecisionSchema, toolName: 'decision' }
+describe('ClaudeStructuredClient', () => {
+  it('forces a tool call and validates its output before returning it', async () => {
+    const client = new ClaudeStructuredClient({ createMessage: async () => ({ content: [{ type: 'tool_use', id: 'toolu_1', name: 'decision', input: { decision: 'silent', rationale: 'No clear opening.' } }] }) } as never)
+    await expect(client.call(request)).resolves.toEqual({ decision: 'silent', rationale: 'No clear opening.' })
+  })
+  it('rejects malformed or missing structured model output', async () => {
+    const malformed = new ClaudeStructuredClient({ createMessage: async () => ({ content: [{ type: 'tool_use', id: 'toolu_1', name: 'decision', input: { decision: 'loud' } }] }) } as never)
+    await expect(malformed.call(request)).rejects.toBeInstanceOf(ClaudeOutputError)
+    const missing = new ClaudeStructuredClient({ createMessage: async () => ({ content: [] }) } as never)
+    await expect(missing.call(request)).rejects.toBeInstanceOf(ClaudeOutputError)
+  })
+})

@@ -141,6 +141,11 @@ export async function getPersonProfile(
   return parsePersonRow(row)
 }
 
+export async function getPersonProfilesForGroup(groupId: string): Promise<PersonProfile[]> {
+  const rows = await prisma.personProfile.findMany({ where: { groupId }, orderBy: { personId: 'asc' } })
+  return rows.map((row) => parsePersonRow(row))
+}
+
 export async function upsertGroupProfile(
   groupId: string,
   updates: Partial<
