@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import nock from 'nock';
 import { describe, expect, it, afterEach } from 'vitest';
-import { AnthropicStructuredClient, ClaudeOutputError } from '../../src/claude/client.js';
+import { AnthropicStructuredClient, ClaudeOutputError, ClaudeTimeoutError } from '../../src/claude/client.js';
 import { speakDecisionSchema } from '../../src/claude/classifier.js';
 import { CLAUDE_MODELS } from '../../src/claude/models.js';
 
@@ -18,5 +18,10 @@ describe('AnthropicStructuredClient', () => {
     nock('https://api.anthropic.com').post('/v1/messages').reply(200, response({ decision: 'loud', rationale: '' }));
     const client = new AnthropicStructuredClient(new Anthropic({ apiKey: 'test-key' }));
     await expect(client.call({ model: CLAUDE_MODELS.classifier, system: 'system', user: 'chat', schema: speakDecisionSchema, toolName: 'decision' })).rejects.toBeInstanceOf(ClaudeOutputError);
+  });
+  it('surfaces an explicit timeout when the Claude HTTP request exceeds its budget', async () => {
+    nock('https://api.anthropic.com').post('/v1/messages').delay(50).reply(200, response({ decision: 'silent', rationale: 'Too late.' }));
+    const client = new AnthropicStructuredClient(new Anthropic({ apiKey: 'test-key', maxRetries: 0 }));
+    await expect(client.call({ model: CLAUDE_MODELS.classifier, system: 'system', user: 'chat', schema: speakDecisionSchema, toolName: 'decision', timeoutMs: 5 })).rejects.toBeInstanceOf(ClaudeTimeoutError);
   });
 });

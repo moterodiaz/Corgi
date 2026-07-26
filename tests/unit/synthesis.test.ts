@@ -21,4 +21,10 @@ describe('plan synthesis', () => {
     const client = new QueueClaudeClient([{ plan: invalid, chatMessage: 'Wrong revision.' }]);
     await expect(synthesizePlan(client, repo, { groupId: 'g1', groupProfile: profiles, personProfiles: [], candidates: [candidate] })).rejects.toThrow('version 2');
   });
+  it('refuses profile data from another group before calling Claude', async () => {
+    const repo = new InMemoryReasoningRepository();
+    const client = new QueueClaudeClient([]);
+    await expect(synthesizePlan(client, repo, { groupId: 'g1', groupProfile: { ...profiles, groupId: 'g2' }, personProfiles: [], candidates: [candidate] })).rejects.toThrow('target group');
+    expect(client.requests).toHaveLength(0);
+  });
 });

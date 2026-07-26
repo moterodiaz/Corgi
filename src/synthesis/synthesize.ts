@@ -18,6 +18,9 @@ const systemPrompt = `Create a concrete, considerate hangout plan from structure
 export const synthesizePlan = async (client: StructuredClaudeClient, repository: ReasoningRepository, input: {
   groupId: string; groupProfile: GroupProfile; personProfiles: PersonProfile[]; candidates: z.infer<typeof candidateSchema>[];
 }): Promise<SynthesisResult> => {
+  if (input.groupProfile.groupId !== input.groupId || input.personProfiles.some((person) => person.groupId !== input.groupId)) {
+    throw new Error('Profiles must belong to the target group');
+  }
   const currentPlan = await repository.getCurrentPlan(input.groupId);
   const candidates = z.array(candidateSchema).parse(input.candidates);
   const output = await client.call({

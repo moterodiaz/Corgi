@@ -9,11 +9,15 @@ const mergeSignals = (stored: ProfileSignal[], incoming: ProfileSignal[]): Profi
     if (!previous) { signals.set(key, next); continue; }
     const mentions = previous.mentions + next.mentions;
     const newer = Date.parse(next.observedAt) >= Date.parse(previous.observedAt) ? next : previous;
+    const daysApart = Math.abs(Date.parse(next.observedAt) - Date.parse(previous.observedAt)) / 86_400_000;
+    const olderWeight = Math.max(0.1, 1 - daysApart / 30);
+    const previousWeight = Date.parse(previous.observedAt) < Date.parse(next.observedAt) ? olderWeight : 1;
+    const nextWeight = Date.parse(next.observedAt) < Date.parse(previous.observedAt) ? olderWeight : 1;
     signals.set(key, {
       value: newer.value,
       mentions,
       observedAt: newer.observedAt,
-      confidence: Math.min(1, (previous.confidence * previous.mentions + next.confidence * next.mentions) / mentions),
+      confidence: Math.min(1, (previous.confidence * previous.mentions * previousWeight + next.confidence * next.mentions * nextWeight) / (previous.mentions * previousWeight + next.mentions * nextWeight)),
     });
   }
   return [...signals.values()];
@@ -61,6 +65,7 @@ export class InMemoryReasoningRepository implements ReasoningRepository {
   async saveNextPlan(groupId: string, plan: PlanObject): Promise<PlanObject> {
     const existing = this.plans.get(groupId) ?? []; const current = existing.at(-1);
     if (current && plan.version !== current.version + 1) throw new Error('Plan version must increment exactly once');
+    if (current && plan.plan_id !== current.plan_id) throw new Error('Plan revisions must retain the existing plan ID');
     if (!current && plan.version !== 1) throw new Error('Initial plan version must be 1');
     this.plans.set(groupId, [...existing, plan]); return plan;
   }

@@ -14,7 +14,7 @@ const planPatchSchema = z.object({
 }).strict();
 
 export const feedbackDiffSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('hard_constraint_change'), patch: planPatchSchema.refine((patch) => patch.datetime !== undefined || patch.attendees !== undefined, 'Hard constraints must change time or attendance') }),
+  z.object({ kind: z.literal('hard_constraint_change'), patch: planPatchSchema.refine((patch) => Object.keys(patch).length > 0, 'Hard constraint requires a patch') }),
   z.object({ kind: z.literal('preference_nudge'), patch: planPatchSchema.refine((patch) => Object.keys(patch).length > 0, 'Preference nudge requires a patch') }),
   z.object({ kind: z.literal('full_reject'), reason: z.string().min(1) }),
 ]);
@@ -28,7 +28,8 @@ export const applyFeedbackDiff = async (client: StructuredClaudeClient, reposito
   if (!current) throw new Error('Cannot apply feedback without a current plan');
   const diff = await client.call({ model: CLAUDE_MODELS.reasoning, system: systemPrompt, user: JSON.stringify({ currentPlan: current, feedback: input.feedback }), schema: feedbackDiffSchema, toolName: 'diff_plan_feedback' });
   if (diff.kind === 'full_reject') return { kind: 'full_reject', requiresSynthesis: true, reason: diff.reason };
-  const next = planObjectSchema.parse({ ...current, ...diff.patch, version: current.version + 1, status: 'revising' });
+  // RSVP feedback is a field-level delta; replacing the map would discard uninvolved attendees.
+  const next = planObjectSchema.parse({ ...current, ...diff.patch, attendees: { ...current.attendees, ...diff.patch.attendees }, version: current.version + 1, status: 'revising' });
   await repository.saveNextPlan(input.groupId, next);
   return { kind: diff.kind, requiresSynthesis: false, plan: next };
 };
