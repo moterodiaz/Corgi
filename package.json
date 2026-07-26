@@ -1,0 +1,19 @@
+{
+  "name": "corgi-spikes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "p2-2:spike": "tsx scripts/p2-2-miniapp-inplace-update-spike.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.10.0",
+    "spectrum-ts": "^12.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
